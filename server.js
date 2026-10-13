@@ -2,6 +2,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const express = require('express');
 const mysql = require('mysql2/promise');
 
 const envPath = path.join(__dirname, '.env');
@@ -19,6 +20,20 @@ const pool = mysql.createPool({
 	connectionLimit: 10,
 	queueLimit: 0,
 });
+
+const app = express();
+app.use(express.json());
+
+app.get('/api/health', async (request, response) => {
+	try {
+		await pool.query('SELECT 1');
+		response.json({ status: 'ok', database: 'connected' });
+	} catch {
+		response.status(503).json({ status: 'error', database: 'disconnected' });
+	}
+});
+
+app.use(express.static(path.join(__dirname, 'public')));
 
 async function initializeDatabase() {
 	await pool.query(`
@@ -68,17 +83,41 @@ async function initializeDatabase() {
 	`);
 }
 
+async function startServer() {
+	await initializeDatabase();
+
+	const port = Number(process.env.PORT || 3000);
+	const host = process.env.HOST || '0.0.0.0';
+
+	return new Promise((resolve, reject) => {
+		const server = app.listen(port, host, () => {
+			console.log(`Server Express in ascolto sulla porta ${port}.`);
+			resolve(server);
+		});
+
+		server.once('error', reject);
+	});
+}
+
 if (require.main === module) {
-	initializeDatabase()
-		.then(() => {
-			console.log(`Database "${process.env.DB_NAME || 'baretto'}" pronto: tabelle create/verificate.`);
-			return pool.end();
+	startServer()
+		.then((server) => {
+			const shutdown = () => {
+				server.close(() => {
+					pool.end().catch((error) => {
+						console.error('Errore durante la chiusura del database:', error.message);
+					});
+				});
+			};
+
+			process.once('SIGINT', shutdown);
+			process.once('SIGTERM', shutdown);
 		})
 		.catch(async (error) => {
-			console.error('Impossibile inizializzare il database:', error.message);
+			console.error('Impossibile avviare il server:', error.message);
 			await pool.end();
 			process.exitCode = 1;
 		});
 }
 
-module.exports = { pool, initializeDatabase };
+module.exports = { app, pool, initializeDatabase, startServer };
