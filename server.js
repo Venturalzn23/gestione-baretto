@@ -33,6 +33,111 @@ app.get('/api/health', async (request, response) => {
 	}
 });
 
+app.get('/api/prodotti', async (request, response) => {
+	try {
+		const [rows] = await pool.query(
+			'SELECT id, nome, descrizione, categoria, prezzo, disponibile FROM prodotti ORDER BY id DESC'
+		);
+		response.json(rows);
+	} catch (error) {
+		response.status(500).json({ message: error.message });
+	}
+});
+
+app.post('/api/prodotti', async (request, response) => {
+	try {
+		const { nome, descrizione = '', categoria = '', prezzo, disponibile = true } = request.body ?? {};
+
+		if (!nome || !prezzo) {
+			return response.status(400).json({ message: 'Nome e prezzo sono obbligatori.' });
+		}
+
+		const [result] = await pool.query(
+			'INSERT INTO prodotti (nome, descrizione, categoria, prezzo, disponibile) VALUES (?, ?, ?, ?, ?)',
+			[nome, descrizione, categoria, Number(prezzo), !!disponibile]
+		);
+
+		response.status(201).json({ id: result.insertId, message: 'Prodotto creato.' });
+	} catch (error) {
+		response.status(500).json({ message: error.message });
+	}
+});
+
+app.get('/api/personale', async (request, response) => {
+	try {
+		const [rows] = await pool.query(
+			'SELECT id, nome, cognome, ruolo, email, telefono, attivo FROM personale ORDER BY id DESC'
+		);
+		response.json(rows);
+	} catch (error) {
+		response.status(500).json({ message: error.message });
+	}
+});
+
+app.post('/api/personale', async (request, response) => {
+	try {
+		const { nome, cognome, ruolo, email = '', telefono = '', attivo = true } = request.body ?? {};
+
+		if (!nome || !cognome || !ruolo) {
+			return response.status(400).json({ message: 'Nome, cognome e ruolo sono obbligatori.' });
+		}
+
+		const [result] = await pool.query(
+			'INSERT INTO personale (nome, cognome, ruolo, email, telefono, attivo) VALUES (?, ?, ?, ?, ?, ?)',
+			[nome, cognome, ruolo, email, telefono, !!attivo]
+		);
+
+		response.status(201).json({ id: result.insertId, message: 'Personale creato.' });
+	} catch (error) {
+		response.status(500).json({ message: error.message });
+	}
+});
+
+app.get('/api/ordini', async (request, response) => {
+	try {
+		const [rows] = await pool.query(`
+			SELECT
+				o.id,
+				o.prodotto_id,
+				o.personale_id,
+				o.quantita,
+				o.prezzo_unitario,
+				o.stato,
+				o.note,
+				o.creato_il,
+				p.nome AS prodotto_nome,
+				pe.nome AS personale_nome,
+				pe.cognome AS personale_cognome
+			FROM ordini o
+			JOIN prodotti p ON p.id = o.prodotto_id
+			LEFT JOIN personale pe ON pe.id = o.personale_id
+			ORDER BY o.id DESC
+		`);
+		response.json(rows);
+	} catch (error) {
+		response.status(500).json({ message: error.message });
+	}
+});
+
+app.post('/api/ordini', async (request, response) => {
+	try {
+		const { prodotto_id, personale_id = null, quantita = 1, prezzo_unitario, stato = 'in_attesa', note = '' } = request.body ?? {};
+
+		if (!prodotto_id || !prezzo_unitario || !quantita) {
+			return response.status(400).json({ message: 'Prodotto, quantità e prezzo unitario sono obbligatori.' });
+		}
+
+		const [result] = await pool.query(
+			'INSERT INTO ordini (prodotto_id, personale_id, quantita, prezzo_unitario, stato, note) VALUES (?, ?, ?, ?, ?, ?)',
+			[Number(prodotto_id), personale_id ? Number(personale_id) : null, Number(quantita), Number(prezzo_unitario), stato, note]
+		);
+
+		response.status(201).json({ id: result.insertId, message: 'Ordine creato.' });
+	} catch (error) {
+		response.status(500).json({ message: error.message });
+	}
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 async function initializeDatabase() {
