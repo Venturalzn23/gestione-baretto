@@ -30,31 +30,21 @@ PORT=3000
 
 ## Avvio
 
-Avvia il database:
+Avvia il database in background e l'applicazione:
 
 ```sh
-docker compose up -d mysql
+npm run dev
 ```
 
-Verifica che MySQL abbia terminato l'avvio:
-
-```sh
-docker compose exec -T mysql mysqladmin ping -h localhost --silent
-```
-
-Quando il comando risponde `mysqld is alive`, avvia Express:
-
-```sh
-npm start
-```
-
-All'avvio vengono create o verificate le tabelle `prodotti`, `personale` e `ordini`; quelle già esistenti non vengono svuotate. Il server resta in ascolto su `http://localhost:3000` (o sulla porta impostata in `PORT`). La cartella `public` è servita alla radice e `GET /api/health` verifica anche la connessione al database:
+Il comando avvia MySQL con Docker Compose e poi esegue `node server.js`. All'avvio vengono create o verificate le tabelle `prodotti`, `personale` e `ordini`; quelle già esistenti non vengono svuotate. Il server resta in ascolto su `http://localhost:3000` (o sulla porta impostata in `PORT`). La cartella `public` è servita alla radice e `GET /api/health` verifica anche la connessione al database:
 
 ```sh
 curl http://localhost:3000/api/health
 ```
 
-La risposta attesa è `{"status":"ok","database":"connected"}`. Ferma Express con `Ctrl+C`, poi, se necessario, ferma il database senza eliminare i dati:
+La pagina autonoma con il solo avanzamento degli ordini è disponibile su `http://localhost:3000/ordini.html` e aggiorna i dati automaticamente ogni 10 secondi.
+
+La risposta attesa per il controllo dello stato è `{"status":"ok","database":"connected"}`. Ferma Express con `Ctrl+C`, poi, se necessario, ferma il database senza eliminare i dati:
 
 ```sh
 docker compose down
@@ -70,4 +60,4 @@ docker exec -it mysql-dev mysql -uutente -ppassword -Dbaretto
 
 ## Stato dell'applicazione
 
-Al momento `npm start` esegue solo l'inizializzazione del database e termina; il server HTTP/API e l'interfaccia web non sono ancora implementati.
+Il server Express espone l'interfaccia di amministrazione su `http://localhost:3000/` e la pagina autonoma di avanzamento degli ordini su `http://localhost:3000/ordini.html`, oltre alle API.

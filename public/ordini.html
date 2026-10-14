@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="it">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#17251f" />
+    <title>Avanzamento ordini - Gestione Baretto</title>
+    <link rel="stylesheet" href="/ordini.css" />
+  </head>
+  <body>
+    <main class="board">
+      <header class="board-header">
+        <div>
+          <p class="eyebrow">Gestione Baretto</p>
+          <h1>Avanzamento ordini</h1>
+          <p class="subtitle">Lo stato degli ordini, aggiornato in tempo reale.</p>
+        </div>
+        <div class="refresh">
+          <span id="lastUpdated" aria-live="polite">Caricamento...</span>
+          <button id="refreshButton" type="button">Aggiorna</button>
+        </div>
+      </header>
+
+      <p id="boardMessage" class="board-message" role="status" aria-live="polite"></p>
+
+      <section id="orderColumns" class="columns" aria-label="Ordini per stato">
+        <section class="column" aria-labelledby="waitingTitle">
+          <h2 id="waitingTitle"><span class="status-dot waiting"></span>In attesa<span class="count" data-count="in_attesa">0</span></h2>
+          <ul class="order-list" data-status="in_attesa"></ul>
+        </section>
+        <section class="column" aria-labelledby="preparingTitle">
+          <h2 id="preparingTitle"><span class="status-dot preparing"></span>In preparazione<span class="count" data-count="in_preparazione">0</span></h2>
+          <ul class="order-list" data-status="in_preparazione"></ul>
+        </section>
+        <section class="column" aria-labelledby="completedTitle">
+          <h2 id="completedTitle"><span class="status-dot completed"></span>Completati<span class="count" data-count="completato">0</span></h2>
+          <ul class="order-list" data-status="completato"></ul>
+        </section>
+        <section class="column" aria-labelledby="cancelledTitle">
+          <h2 id="cancelledTitle"><span class="status-dot cancelled"></span>Annullati<span class="count" data-count="annullato">0</span></h2>
+          <ul class="order-list" data-status="annullato"></ul>
+        </section>
+      </section>
+    </main>
+
+    <script>
+      const statuses = ['in_attesa', 'in_preparazione', 'completato', 'annullato'];
+      const lastUpdated = document.querySelector('#lastUpdated');
+      const boardMessage = document.querySelector('#boardMessage');
+      const refreshButton = document.querySelector('#refreshButton');
+      let loading = false;
+
+      function createOrderCard(order) {
+        const item = document.createElement('li');
+        item.className = 'order-card';
+
+        const orderNumber = document.createElement('span');
+        orderNumber.className = 'order-number';
+        orderNumber.textContent = `Ordine #${order.id}`;
+
+        const product = document.createElement('strong');
+        product.className = 'product-name';
+        product.textContent = order.prodotto_nome;
+
+        const quantity = document.createElement('span');
+        quantity.className = 'quantity';
+        quantity.textContent = `Quantità: ${order.quantita}`;
+
+        item.append(orderNumber, product, quantity);
+        return item;
+      }
+
+      async function loadOrders() {
+        if (loading) return;
+        loading = true;
+        refreshButton.disabled = true;
+        boardMessage.textContent = '';
+
+        try {
+          const response = await fetch('/api/ordini');
+          if (!response.ok) {
+            throw new Error(`Richiesta non riuscita (HTTP ${response.status}).`);
+          }
+
+          const orders = await response.json();
+          if (!Array.isArray(orders)) {
+            throw new Error('Il server ha restituito un elenco di ordini non valido.');
+          }
+
+          const columns = new Map(
+            statuses.map((status) => [status, document.querySelector(`[data-status="${status}"]`)])
+          );
+          const counts = new Map(statuses.map((status) => [status, 0]));
+          for (const column of columns.values()) {
+            column.replaceChildren();
+          }
+
+          for (const order of orders) {
+            const column = columns.get(order.stato);
+            if (!column) continue;
+            column.append(createOrderCard(order));
+            counts.set(order.stato, counts.get(order.stato) + 1);
+          }
+
+          for (const status of statuses) {
+            const column = columns.get(status);
+            if (counts.get(status) === 0) {
+              const emptyItem = document.createElement('li');
+              emptyItem.className = 'empty-state';
+              emptyItem.textContent = 'Nessun ordine';
+              column.append(emptyItem);
+            }
+            document.querySelector(`[data-count="${status}"]`).textContent = counts.get(status);
+          }
+
+          lastUpdated.textContent = `Aggiornato alle ${new Intl.DateTimeFormat('it-IT', {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+          }).format(new Date())}`;
+        } catch (error) {
+          console.error('Errore durante il caricamento degli ordini:', error);
+          boardMessage.textContent = 'Impossibile caricare gli ordini. Riprova tra poco.';
+        } finally {
+          loading = false;
+          refreshButton.disabled = false;
+        }
+      }
+
+      refreshButton.addEventListener('click', loadOrders);
+      loadOrders();
+      window.setInterval(loadOrders, 10000);
+    </script>
+  </body>
+</html>
